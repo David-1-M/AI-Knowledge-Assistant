@@ -132,3 +132,36 @@ def test_chat_endpoint(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["sources"][0]["reference"] == "[1]"
+
+
+@pytest.mark.asyncio
+async def test_no_retrieved_context_skips_llm(monkeypatch):
+    # Arrange
+    monkeypatch.setattr(
+        rag_service,
+        "semantic_search",
+        lambda **kwargs: []
+    )
+
+    called = False
+
+    async def fake_generate(prompt):
+        nonlocal called
+        called = True
+        return "An unsupported answer"
+
+    monkeypatch.setattr(
+        rag_service,
+        "generate_answer",
+        fake_generate
+    )
+
+    # Act
+    result = await rag_service.answer_question(
+        question="What does the document say?"
+    )
+
+    # Assert
+    assert called is False
+    assert result["answer"] == rag_service.NO_EVIDENCE
+    assert result["sources"] == []
